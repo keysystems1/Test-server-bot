@@ -1,4 +1,5 @@
 # ULTIMATE 4in1 - Protection + YouTube + Welcome + Appy 🔥
+# كل البوتات في بوت واحد اسطوري
 import os, re, time, threading, asyncio, socket, io, random, json
 from collections import defaultdict, deque
 from datetime import datetime, timedelta
@@ -50,13 +51,19 @@ APPY_LOG_ROOM_ID = 1553859013534552084
 QUESTIONS_FILE = "questions.json"
 
 def load_q():
-    if not os.path.exists(QUESTIONS_FILE): return []
+    if not os.path.exists(QUESTIONS_FILE):
+        return []
     try:
-        with open(QUESTIONS_FILE, "r", encoding="utf-8") as f: return json.load(f)
-    except: return []
-def save_q(qs):
-    with open(QUESTIONS_FILE, "w", encoding="utf-8") as f: json.dump(qs, f, ensure_ascii=False, indent=2)
+        with open(QUESTIONS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except:
+        return []
 
+def save_q(qs):
+    with open(QUESTIONS_FILE, "w", encoding="utf-8") as f:
+        json.dump(qs, f, ensure_ascii=False, indent=2)
+
+# ========== FLASK ==========
 app = Flask('')
 @app.route('/')
 def home(): return "ULTIMATE 4in1 - Protection + YouTube + Welcome + Appy ALIVE 🔥"
@@ -74,6 +81,7 @@ def is_admin(m):
     if not m: return False
     if m.guild_permissions.administrator: return True
     return any(r.id in ADMIN_ROLES for r in m.roles)
+
 def is_whitelisted(m):
     if not m: return False
     if m.id in WHITELIST_USERS: return True
@@ -113,6 +121,7 @@ async def punish(guild, user, reason_ar, reason_en, level=1):
     except Exception as ex:
         print(f"punish err {ex}")
 
+# ========== WELCOME IMAGE ==========
 async def create_welcome_image(member):
     try:
         width, height = 1000, 400
@@ -135,207 +144,166 @@ async def create_welcome_image(member):
         draw.text((280, 50), "WELCOME", fill=(255, 70, 0), font=font_big)
         draw.text((280, 120), member.name[:20], fill=(255, 255, 255), font=font_big)
         draw.text((280, 190), f"Member #{member.guild.member_count}", fill=(180,180,180), font=font_small)
-        draw.text((280, 230), f"Account: {(datetime.now().astimezone() - member.created_at).days} days", fill=(120,120,120), font=font_small)
-        draw.text((280, 270), member.guild.name[:35], fill=(255,70,0), font=font_small)
+        draw.text((280, 240), random.choice(WELCOME_MESSAGES).format(mention=member.mention, name=member.name)[:40], fill=(255,255,255), font=font_small)
         buf = io.BytesIO()
         img.save(buf, format='PNG')
         buf.seek(0)
         return buf
     except Exception as e:
-        print(f"Image error {e}")
+        print(f"welcome img err {e}")
         return None
 
-async def get_channel_id(handle):
+# ========== YOUTUBE ==========
+async def get_cid(handle):
     try:
         async with aiohttp.ClientSession() as s:
-            async with s.get(f"https://www.youtube.com/{handle}", headers={"User-Agent": "Mozilla/5.0"}) as r:
+            async with s.get(f"https://www.youtube.com/{handle}", headers={"User-Agent":"Mozilla/5.0"}) as r:
                 txt = await r.text()
                 m = re.search(r'"channelId":"(UC[^"]+)"', txt)
                 if m: return m.group(1)
-                m = re.search(r'"externalId":"(UC[^"]+)"', txt)
-                if m: return m.group(1)
-    except Exception as e:
-        print(f"YT resolve {handle}: {e}")
+    except: pass
     return None
 
-@tasks.loop(seconds=30)
-async def youtube_check():
+@tasks.loop(seconds=90)
+async def yt_check():
     await bot.wait_until_ready()
-    if not YT_CHANNELS: return
     async with aiohttp.ClientSession() as s:
         for cid, name in YT_CHANNELS.items():
             try:
-                async with s.get(f"https://www.youtube.com/feeds/videos.xml?channel_id={cid}") as r:
-                    if r.status!=200: continue
+                url = f"https://www.youtube.com/feeds/videos.xml?channel_id={cid}"
+                async with s.get(url) as r:
+                    if r.status!= 200: continue
                     txt = await r.text()
                     root = ET.fromstring(txt)
-                    ns = {'atom': 'http://www.w3.org/2005/Atom', 'yt': 'http://www.youtube.com/xml/schemas/2015'}
-                    entry = root.find('atom:entry', ns)
-                    if not entry: continue
-                    vid = entry.find('yt:videoId', ns).text
-                    title = entry.find('atom:title', ns).text
-                    link = entry.find('atom:link', ns).attrib['href']
+                    ns = {'atom':'http://www.w3.org/2005/Atom','yt':'http://www.youtube.com/xml/schemas/2015'}
+                    e = root.find('atom:entry', ns)
+                    if not e: continue
+                    vid = e.find('yt:videoId', ns).text
+                    title = e.find('atom:title', ns).text
+                    link = e.find('atom:link', ns).attrib['href']
                     if cid not in YT_LAST:
-                        YT_LAST[cid]=vid
+                        YT_LAST[cid] = vid
                         continue
-                    if YT_LAST[cid]!=vid:
-                        YT_LAST[cid]=vid
-                        ch = bot.get_channel(YT_ROOM_ID) or await bot.fetch_channel(YT_ROOM_ID)
-                        embed = discord.Embed(title=title, url=link, description=f"فيديو جديد من **{name}** 🔥", color=0xFF0000)
-                        embed.set_image(url=f"https://img.youtube.com/vi/{vid}/maxresdefault.jpg")
-                        embed.set_footer(text=name)
-                        await ch.send(content=f"<@&{YT_ROLE_ID}> 🔔 فيديو جديد!", embed=embed)
+                    if YT_LAST[cid]!= vid:
+                        YT_LAST[cid] = vid
+                        ch = bot.get_channel(YT_ROOM_ID)
+                        if ch:
+                            em = discord.Embed(title=title, url=link, description=f"جديد من {name}", color=0xFF0000)
+                            em.set_image(url=f"https://img.youtube.com/vi/{vid}/maxresdefault.jpg")
+                            await ch.send(content=f"<@&{YT_ROLE_ID}>", embed=em)
             except Exception as e:
-                print(f"YT Error {name}: {e}")
+                print(f"YT error {e}")
 
-class AddQuestionModal(discord.ui.Modal, title="Set Application Questions"):
-    questions_input = discord.ui.TextInput(label="Put each question on new line", style=discord.TextStyle.paragraph, placeholder="What is your name?\nHow old are you?\nWhy you want staff?", required=True, max_length=2000)
+# ========== APPY VIEWS ==========
+class AddModal(discord.ui.Modal, title="Set Questions"):
+    q_input = discord.ui.TextInput(label="كل سؤال بسطر", style=discord.TextStyle.paragraph, required=True)
     async def on_submit(self, interaction: discord.Interaction):
-        new_qs = [q.strip() for q in self.questions_input.value.split("\n") if q.strip()]
-        save_q(new_qs)
-        await interaction.response.send_message(f"✅ Saved {len(new_qs)} questions:\n" + "\n".join([f"{i+1}. {q}" for i,q in enumerate(new_qs)]), ephemeral=True)
+        qs = [q.strip() for q in self.q_input.value.split("\n") if q.strip()]
+        save_q(qs)
+        await interaction.response.send_message(f"تم حفظ {len(qs)} اسئلة", ephemeral=True)
 
 class PanelView(discord.ui.View):
-    def __init__(self): super().__init__(timeout=300)
+    def __init__(self):
+        super().__init__(timeout=300)
     @discord.ui.button(label="Set Questions", style=discord.ButtonStyle.blurple)
-    async def set_q(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(AddQuestionModal())
-    @discord.ui.button(label="Show Questions", style=discord.ButtonStyle.gray)
-    async def show_q(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def set_q(self, i, b):
+        await i.response.send_modal(AddModal())
+    @discord.ui.button(label="Show", style=discord.ButtonStyle.gray)
+    async def show_q(self, i, b):
         qs = load_q()
-        if not qs: return await interaction.response.send_message("No questions yet", ephemeral=True)
-        txt = "\n".join([f"{i+1}. {q}" for i,q in enumerate(qs)])
-        await interaction.response.send_message(f"Current ({len(qs)}):\n{txt}", ephemeral=True)
-    @discord.ui.button(label="Clear All", style=discord.ButtonStyle.red)
-    async def clear_q(self, interaction: discord.Interaction, button: discord.ui.Button):
+        txt = "\n".join(qs) if qs else "No questions"
+        await i.response.send_message(txt[:1900], ephemeral=True)
+    @discord.ui.button(label="Clear", style=discord.ButtonStyle.red)
+    async def clear_q(self, i, b):
         save_q([])
-        await interaction.response.send_message("Cleared all questions", ephemeral=True)
+        await i.response.send_message("Cleared", ephemeral=True)
 
 class AcceptView(discord.ui.View):
-    def __init__(self, member_id): super().__init__(timeout=None); self.member_id = member_id
+    def __init__(self, mid):
+        super().__init__(timeout=None)
+        self.mid = mid
     @discord.ui.button(label="Accept", style=discord.ButtonStyle.green)
-    async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not any(r.id in ADMIN_ROLES for r in interaction.user.roles): return await interaction.response.send_message("Only admin", ephemeral=True)
-        m = interaction.guild.get_member(self.member_id)
+    async def acc(self, i, b):
+        m = i.guild.get_member(self.mid)
         if m:
-            role = interaction.guild.get_role(ACCEPT_ROLE_ID)
+            role = i.guild.get_role(ACCEPT_ROLE_ID)
             if role:
                 try: await m.add_roles(role)
                 except: pass
-            try: await m.send(f"🎉 You got accepted in {interaction.guild.name}")
-            except: pass
-        await interaction.message.edit(content=f"✅ Accepted <@{self.member_id}> by {interaction.user.mention}", view=None)
-        await interaction.response.send_message("Accepted", ephemeral=True)
+        await i.message.edit(content=f"Accepted <@{self.mid}>", view=None)
+        await i.response.send_message("Done", ephemeral=True)
     @discord.ui.button(label="Reject", style=discord.ButtonStyle.red)
-    async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not any(r.id in ADMIN_ROLES for r in interaction.user.roles): return await interaction.response.send_message("Only admin", ephemeral=True)
-        await interaction.message.edit(content=f"❌ Rejected <@{self.member_id}> by {interaction.user.mention}", view=None)
-        await interaction.response.send_message("Rejected", ephemeral=True)
+    async def rej(self, i, b):
+        await i.message.edit(content=f"Rejected <@{self.mid}>", view=None)
+        await i.response.send_message("Done", ephemeral=True)
 
 @bot.event
 async def on_ready():
-    print(f"✅ ULTIMATE 4in1 READY {bot.user}")
-    try: await bot.tree.sync()
-    except: pass
-    for handle in CHANNEL_HANDLES:
-        cid = await get_channel_id(handle)
-        if cid: YT_CHANNELS[cid]=handle
-    if not youtube_check.is_running(): youtube_check.start()
+    print(f"BOT READY {bot.user} in {len(bot.guilds)} guilds")
+    try:
+        await bot.tree.sync()
+        print("Slash synced")
+    except Exception as e:
+        print(f"Sync error {e}")
+    for h in CHANNEL_HANDLES:
+        cid = await get_cid(h)
+        if cid:
+            YT_CHANNELS[cid] = h
+            print(f"YT mapped {h} -> {cid}")
+    if not yt_check.is_running():
+        yt_check.start()
 
 @bot.event
 async def on_member_join(member):
-    global is_raid_mode
-    join_cache.append(time.time())
-    recent = [t for t in join_cache if time.time()-t<10]
-    if len(recent)>=5 and not is_raid_mode:
-        is_raid_mode=True
-        log = member.guild.get_channel(LOG_ID)
-        if log:
-            e=discord.Embed(title="🚨 رايد!", color=0xff0000)
-            e.add_field(name="التفاصيل", value=f"{len(recent)} دخول ب10 ثواني", inline=False)
-            await log.send(embed=e)
-        try: await member.guild.edit(verification_level=discord.VerificationLevel.highest)
-        except: pass
-        await asyncio.sleep(60)
-        is_raid_mode=False
-        try: await member.guild.edit(verification_level=discord.VerificationLevel.low)
-        except: pass
-    guild=member.guild
-    age_days=(datetime.now().astimezone() - member.created_at).days
-    if AUTO_ROLE_ID!=0:
+    if AUTO_ROLE_ID:
         try:
-            role=guild.get_role(AUTO_ROLE_ID)
-            if role: await member.add_roles(role, reason="Auto Role")
+            r = member.guild.get_role(AUTO_ROLE_ID)
+            if r: await member.add_roles(r)
         except: pass
-    if age_days<3:
-        log=guild.get_channel(LOG_ID)
-        if log:
-            e=discord.Embed(title="⚠️ حساب جديد", color=0xffa500, timestamp=datetime.now())
-            e.set_thumbnail(url=member.display_avatar.url)
-            e.add_field(name="العضو", value=f"{member.mention} `{member.id}`", inline=False)
-            e.add_field(name="عمر الحساب", value=f"{age_days} يوم", inline=True)
-            await log.send(embed=e)
-    channel=guild.get_channel(WELCOME_CHANNEL_ID)
-    if channel:
-        welcome_text=random.choice(WELCOME_MESSAGES).format(mention=member.mention, name=member.name)
-        embed=discord.Embed(title=f"🔥 WELCOME TO {guild.name.upper()} 🔥", description=f"{welcome_text}\n\n👤 **العضو:** {member.mention}\n📊 **رقمك:** #{guild.member_count}\n📅 **عمر حسابك:** {age_days} يوم\n🕒 **دخلت:** <t:{int(datetime.now().timestamp())}:R>\n\nاقرأ القوانين واستمتع 👑", color=0xFF4600, timestamp=datetime.now())
-        embed.set_thumbnail(url=member.display_avatar.url)
-        img_buf=await create_welcome_image(member)
-        try:
-            if img_buf:
-                file=discord.File(img_buf, filename="welcome.png")
-                embed.set_image(url="attachment://welcome.png")
-                await channel.send(content=f"{member.mention} {welcome_text}", embed=embed, file=file)
-            else:
-                await channel.send(content=f"{member.mention} {welcome_text}", embed=embed)
-        except Exception as e: print(f"Welcome err {e}")
+    ch = member.guild.get_channel(WELCOME_CHANNEL_ID)
+    if not ch: return
+    buf = await create_welcome_image(member)
+    em = discord.Embed(title=f"Welcome {member.guild.name}", description=f"اهلا {member.mention}", color=0xFF4600)
+    if buf:
+        await ch.send(content=member.mention, embed=em, file=discord.File(buf, filename="welcome.png"))
+    else:
+        await ch.send(content=member.mention, embed=em)
 
 @bot.event
 async def on_member_remove(member):
-    channel=member.guild.get_channel(GOODBYE_CHANNEL_ID)
-    if not channel: return
-    embed=discord.Embed(title="👋 غادر", description=f"**{member.name}** طلع 😢\nكنا {member.guild.member_count+1} صرنا {member.guild.member_count}", color=0x2b2d31, timestamp=datetime.now())
-    embed.set_thumbnail(url=member.display_avatar.url)
-    await channel.send(embed=embed)
+    ch = member.guild.get_channel(GOODBYE_CHANNEL_ID)
+    if ch:
+        await ch.send(f"{member.name} طلع - باي باي 👋")
 
 @bot.event
 async def on_message(message):
-    if message.author.bot: return
-    if not message.guild: return
-    if is_whitelisted(message.author):
-        await bot.process_commands(message)
+    if message.author.bot or not message.guild: return
+    guild = message.guild
+    low = message.content.lower()
+    if message.channel.id == AUTO_TIMEOUT_ROOM_ID and not is_admin(message.author):
+        try:
+            await message.delete()
+            await message.author.timeout(discord.utils.utcnow() + timedelta(seconds=AUTO_TIMEOUT_SECONDS), reason=AUTO_TIMEOUT_REASON)
+            log = guild.get_channel(LOG_ID)
+            if log:
+                await log.send(f"⏰ {message.author.mention} كتب في <#{AUTO_TIMEOUT_ROOM_ID}> - تايم اوت ساعة")
+        except: pass
         return
-    if message.channel.id==AUTO_TIMEOUT_ROOM_ID:
-        if not is_admin(message.author):
-            try: await message.delete()
-            except: pass
-            try:
-                await message.author.timeout(discord.utils.utcnow() + timedelta(seconds=AUTO_TIMEOUT_SECONDS), reason=AUTO_TIMEOUT_REASON)
-                await message.channel.send(f"⛔ {message.author.mention} ممنوع الكتابة هنا!", delete_after=5)
-            except: pass
-            return
-    low=message.content.lower()
-    guild=message.guild
-    for pat in SCAM_REGEX:
-        if re.search(pat, low, re.IGNORECASE):
-            try: await message.delete()
-            except: pass
-            await punish(guild, message.author, f"سكام `{pat}`", f"Scam {pat}", 3)
-            return
     for d in SCAM_DOMAINS:
         if d in low:
             try: await message.delete()
             except: pass
-            await punish(guild, message.author, f"سكام دومين `{d}`", f"Scam {d}", 3)
+            await punish(guild, message.author, f"سكام {d}", f"Scam {d}", 3)
             return
-    if re.search(r"https?://", low) and not any(w in low for w in WHITELIST_DOMAINS):
-        age=(datetime.now().astimezone() - message.author.created_at).days
-        if age<7:
+    for pat in SCAM_REGEX:
+        if re.search(pat, low):
             try: await message.delete()
             except: pass
-            await punish(guild, message.author, f"حساب جديد {age} يوم + رابط", f"New {age}d", 3)
+            await punish(guild, message.author, f"سكام", f"Scam pattern", 3)
             return
-        if INVITE_REGEX.search(low) and not is_admin(message.author):
+    if INVITE_REGEX.search(message.content):
+        is_whitelisted_link = any(dom in low for dom in WHITELIST_DOMAINS)
+        if not is_whitelisted_link:
             try: await message.delete()
             except: pass
             await punish(guild, message.author, "دعوات", "Invite", 1)
@@ -399,10 +367,83 @@ async def on_webhooks_update(channel):
             await punish(channel.guild, ex, "ويبهوك", "Webhook", 2)
         except: pass
 
+# ========== COMMANDS ==========
 @bot.tree.command(name="حماية", description="حالة البوت الشامل")
 async def protection_cmd(interaction: discord.Interaction):
     e=discord.Embed(title="💀 البوت الشامل 4 في 1 - الأسطوري", color=0x000000)
     e.add_field(name="🛡️ الحماية", value=f"اللوغ: <#{LOG_ID}>\nتايم اوت: <#{AUTO_TIMEOUT_ROOM_ID}>", inline=False)
     e.add_field(name="🎥 يوتيوب", value=f"{len(CHANNEL_HANDLES)} قنوات - <#{YT_ROOM_ID}> - <@&{YT_ROLE_ID}>\n" + "\n".join(CHANNEL_HANDLES), inline=False)
     e.add_field(name="👋 ترحيب", value=f"ترحيب: <#{WELCOME_CHANNEL_ID}>\nمغادرة: <#{GOODBYE_CHANNEL_ID}>\nرول: <@&{AUTO_ROLE_ID}>", inline=False)
-    e.add_field(name="📝 تقديم Appy", value=f"روم التقديم: <#{COMMAND_ROOM_ID}>\nلوغ التقديم: <#{APPY_LOG_ROOM_ID}>\nرول القبول: <@&{ACCEPT_ROLE_ID}>\nاستخدم /تقدي
+    e.add_field(name="📝 تقديم Appy", value=f"روم التقديم: <#{COMMAND_ROOM_ID}>\nلوغ التقديم: <#{APPY_LOG_ROOM_ID}>\nرول القبول: <@&{ACCEPT_ROLE_ID}>\nاستخدم /تقديم", inline=False)
+    await interaction.response.send_message(embed=e, ephemeral=True)
+
+@bot.tree.command(name="تقديم", description="Apply or Setup Panel for Admins")
+async def taqdeem(interaction: discord.Interaction):
+    is_admin_user = any(r.id in ADMIN_ROLES for r in interaction.user.roles) or interaction.user.guild_permissions.administrator
+    if is_admin_user:
+        qs = load_q()
+        embed = discord.Embed(title="Appy Control Panel", description=f"انت ادمن - هنا تحط اسئلة التقديم\n\nالحالي: {len(qs)} سؤال\nروم التقديم: <#{COMMAND_ROOM_ID}>", color=0x8b5cf6)
+        return await interaction.response.send_message(embed=embed, view=PanelView(), ephemeral=True)
+    if interaction.channel.id!= COMMAND_ROOM_ID:
+        return await interaction.response.send_message(f"استخدم الامر فقط في <#{COMMAND_ROOM_ID}>", ephemeral=True)
+    await interaction.response.defer(ephemeral=True)
+    qs = load_q()
+    if not qs:
+        return await interaction.followup.send("لسا ما في اسئلة - خلي الادمن يحط اسئلة", ephemeral=True)
+    try:
+        await interaction.user.send(f"هلا! تقديمك في {interaction.guild.name} بدأ - عندك {len(qs)} اسئلة - اكتب cancel للالغاء")
+    except:
+        return await interaction.followup.send("افتح الخاص DM!", ephemeral=True)
+    await interaction.followup.send("شيك الخاص!", ephemeral=True)
+    answers=[]
+    def check(m): return m.author.id==interaction.user.id and isinstance(m.channel, discord.DMChannel)
+    for i,q in enumerate(qs,1):
+        await interaction.user.send(embed=discord.Embed(title=f"سؤال {i}/{len(qs)}", description=q, color=0x8b5cf6))
+        try:
+            msg=await bot.wait_for("message", check=check, timeout=300)
+            if msg.content.lower() in ["cancel","الغاء"]:
+                await interaction.user.send("تم الالغاء"); return
+            answers.append(msg.content)
+        except asyncio.TimeoutError:
+            await interaction.user.send("انتهى الوقت"); return
+    ch=bot.get_channel(APPY_LOG_ROOM_ID)
+    if ch:
+        embed=discord.Embed(title="📝 تقديم جديد!", description=f"المتقدم: {interaction.user.mention} `{interaction.user.id}`", color=0x2ecc71)
+        for q,a in zip(qs, answers):
+            embed.add_field(name=q, value=a[:1024], inline=False)
+        await ch.send(embed=embed, view=AcceptView(interaction.user.id))
+    await interaction.user.send("✅ تم ارسال تقديمك للادارة!")
+
+def get_token(): return os.getenv("TOKEN") or os.getenv("DISCORD_TOKEN") or os.getenv("BOT_TOKEN")
+async def check_internet():
+    try:
+        socket.create_connection(("8.8.8.8", 53), timeout=3)
+        return True
+    except:
+        try:
+            socket.create_connection(("1.1.1.1", 53), timeout=3)
+            return True
+        except:
+            return False
+
+async def runner():
+    token=get_token()
+    if not token:
+        print("❌ ما لقيت TOKEN")
+        return
+    retry=5
+    while True:
+        try:
+            while not await check_internet():
+                await asyncio.sleep(10)
+            print("🚀 يشغل البوت 4in1...")
+            await bot.start(token)
+        except Exception as e:
+            print(f"⚠️ {e}")
+            await asyncio.sleep(retry)
+            retry=min(retry*1.5, 60)
+        else:
+            await asyncio.sleep(5)
+
+if __name__=="__main__":
+    asyncio.run(runner())
